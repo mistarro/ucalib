@@ -1,0 +1,306 @@
+\documentclass[12pt,a4paper]{amsart}
+
+\usepackage{amsmath}
+\usepackage[a4paper,margin=1.5cm]{geometry}
+
+\renewcommand{\v}[1]{\mathbf{#1}}
+\renewcommand{\d}{\partial}
+\newcommand{\dd}[1]{\frac{\partial}{\partial #1}}
+\newcommand{\ddd}[2]{\frac{\partial #1}{\partial #2}}
+\newcommand{\dddd}[3]{\frac{\partial^2 #1}{\partial #2 \partial #3}}
+
+\DeclareMathOperator{\diag}{diag}
+
+\begin{document}
+
+The goal of these notes is to simplify and clarify math underlying the method for intrinsic calibration of fisheye cameras described in \cite{Kan} adapted for slightly different camera model.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Camera model equations}
+
+Besides this section, everything is abstracted to be easily used with different camera models (e.g. pinhole camera).
+To specify a~camera model, one specifies a~function taking an image pixel coordinates $(u, v)$ and returning a~unit 3D vector $\v{m}$ pointing towards the feature in real world.
+
+For a~(perfect) pinhole camera with parameters $\v{t} = (f_u, f_v, u_0, v_0)$ it would be computed as
+\begin{align*}
+  x & = \frac{u - u_0}{f_u} \\
+  y & = \frac{v - v_0}{f_v} \\
+  s & = \sqrt{1 + x^2 + y^2} \\
+  \v{m} & = \left[ \begin{array}{c} \frac{x}{s} \\ \frac{y}{s} \\ \frac{1}{s} \end{array} \right]
+\end{align*}
+with derivatives given by
+\begin{align*}
+\ddd{\v{m}}{\v{t}} & = 
+  \left[ \begin{array}{cccccccc}
+    -\frac{x(y^2 + 1)}{s^3f_u} &  \frac{xy^2}{s^3f_v}       & -\frac{y^2 + 1}{s^3f_u} &  \frac{xy}{s^3f_v}      \\
+     \frac{x^2 y}{s^3f_u}      & -\frac{(x^2 + 1)y}{s^3f_v} &  \frac{xy}{s^3f_u}      & -\frac{x^2 + 1}{s^3f_v} \\
+     \frac{x^2}{s^3f_u}        &  \frac{y^2}{s^3f_v}        &  \frac{x}{s^3f_u}       &  \frac{y}{s^3f_v}
+  \end{array} \right].
+\end{align*}
+
+In our fisheye camera model, given parameters $\v{t} = (f_u, f_v, u_0, v_0, k_2, k_3, k_4, k_5)$ we project an image point $(u, v)$ to the unit sphere as follows.
+
+\begin{align*}
+  x & = \frac{u - u_0}{f_u} \\
+  y & = \frac{v - v_0}{f_v} \\
+  r & = \sqrt{x^2 + y^2} \\
+  \theta & = h_{k_2, k_3, k_4, k_5}^{-1}(r) =: \hat{H}(r, k_2, k_3, k_4, k_5) \\
+  \v{m} & = \left[ \begin{array}{c} \frac{x}{r}\sin\theta \\ \frac{y}{r}\sin\theta \\ \cos\theta \end{array} \right]
+\end{align*}
+where $h_{k_2, k_3, k_4, k_5}$ is defined as
+\begin{align*}
+  h_{k_2, k_3, k_4, k_5}(\theta) & = \theta + k_2\theta^3 + k_3\theta^5 + k_4\theta^7 + k_5\theta^9 =: H(\theta, k_2, k_3, k_4, k_5).
+\end{align*}
+Since the formula has a~singularity at $r = 0$ (for $(u, v) = (u_0, v_0)$), we also compute
+\begin{align*}
+  \lim_{r \to 0} \v{m} & = \left[ \begin{array}{c} 0 \\ 0 \\ 1 \end{array} \right]
+\end{align*}
+as
+\begin{align*}
+  \lim_{r \to 0} \theta & = 0 \\
+  -1 \leq \frac{x}{r} & \leq 1 \\
+  -1 \leq \frac{y}{r} & \leq 1.
+\end{align*}
+
+\subsection{First derivative of $\v{m}$}
+
+\begin{align*}
+  \ddd{r}{t} & =
+    \begin{cases}
+      -\frac{x^2}{rf_u}      & t = f_u \\
+      -\frac{y^2}{rf_v}      & t = f_v \\
+      -\frac{x}{rf_u}        & t = u_0 \\
+      -\frac{y}{rf_v}        & t = v_0 \\
+      0                      & t = k_i
+    \end{cases}
+\end{align*}
+
+\begin{align*}
+  \dd{t} \left( \frac{x}{r} \right) & =
+    \begin{cases}
+      -\frac{xy^2}{r^3f_u}   & t = f_u \\
+       \frac{xy^2}{r^3f_v}   & t = f_v \\
+      -\frac{y^2}{r^3f_u}    & t = u_0 \\
+       \frac{xy}{r^3f_v}     & t = v_0 \\
+      0                      & t = k_i
+    \end{cases}
+\end{align*}
+
+\begin{align*}
+  \dd{t} \left( \frac{y}{r} \right) & =
+    \begin{cases}
+       \frac{x^2y}{r^3f_u}   & t = f_u \\
+      -\frac{x^2y}{r^3f_v}   & t = f_v \\
+       \frac{xy}{r^3f_u}     & t = u_0 \\
+      -\frac{x^2}{r^3f_v}    & t = v_0 \\
+      0                      & t = k_i
+    \end{cases}
+\end{align*}
+
+\begin{align*}
+  \ddd{\theta}{r} &= \left( \ddd{r}{\theta} \right)^{-1} = \frac{1}{1 + 3k_2\theta^2 + 5k_3\theta^4 + 7k_4\theta^6 + 9k_5\theta^8} \\
+\end{align*}
+
+For $t = f_u, f_v, u_0, v_0$, the derivative $\ddd{\theta}{t}$ is given by
+\begin{align*}
+  \ddd{\theta}{t} &= \ddd{\theta}{r} \ddd{r}{t}.
+\end{align*}
+
+For $t = k_2, k_3, k_4, k_5$ we proceed with the identity
+\begin{align*}
+  r = H(\hat{H}(r, k_2, k_3, k_4, k_5), k_2, k_3, k_4, k_5).
+\end{align*}
+Differentiating wrt $k_i$ gives (as $r$ does not depend on $k_i$)
+\begin{align*}
+  0 &= \ddd{r}{k_i} = \dd{k_i} H(\hat{H}(r, k_2, k_3, k_4, k_5), k_2, k_3, k_4, k_5) \\
+    &= \ddd{H}{\theta}(\theta, k_2, k_3, k_4, k_5)\cdot \ddd{\hat{H}}{k_i}(r, k_2, k_3, k_4, k_5) + \ddd{H}{k_i}(\theta, k_2, k_3, k_4, k_5),
+\end{align*}
+and therefore
+\begin{align*}
+  \ddd{\theta}{k_i} &= \ddd{\hat{H}}{k_i}(r, k_2, k_3, k_4, k_5) \\
+                    &= - \ddd{H}{k_i}(\theta, k_2, k_3, k_4, k_5)\cdot \left( \ddd{H}{\theta}(\theta, k_2, k_3, k_4, k_5) \right)^{-1} \\
+                    &= - \theta^{2i - 1}\cdot \ddd{\theta}{r}.
+\end{align*}
+
+Putting it all together we get
+\begin{align*}
+  \ddd{\v{m}}{t} & = \dd{t} \left[ \begin{array}{c} \frac{x}{r}\sin\theta \\ \frac{y}{r}\sin\theta \\ \cos\theta \end{array} \right]
+    = \left[ \begin{array}{c}
+      \dd{t} \left( \frac{x}{r} \right) \sin\theta + \frac{x}{r} \ddd{\theta}{t} \cdot \cos\theta \\
+      \dd{t} \left( \frac{y}{r} \right) \sin\theta + \frac{y}{r} \ddd{\theta}{t} \cdot \cos\theta \\
+      - \ddd{\theta}{t} \cdot \sin\theta
+    \end{array} \right] \\
+    & = \begin{cases}
+          -\frac{x}{f_u} \left[ \begin{array}{c}
+            \frac{x^2}{r^2} \cdot \ddd{\theta}{r} \cdot \cos\theta + \frac{y^2}{r^2} \cdot \frac{\sin\theta}{r} \\
+            \frac{xy}{r^2}  \cdot \ddd{\theta}{r} \cdot \cos\theta - \frac{xy}{r^2}  \cdot \frac{\sin\theta}{r} \\
+           -\frac{x}{r} \cdot \ddd{\theta}{r} \cdot \sin\theta
+          \end{array} \right] & t = f_u \\
+          -\frac{y}{f_v} \left[ \begin{array}{c}
+            \frac{xy}{r^2}  \cdot \ddd{\theta}{r} \cdot \cos\theta - \frac{xy}{r^2}  \cdot \frac{\sin\theta}{r} \\
+            \frac{y^2}{r^2} \cdot \ddd{\theta}{r} \cdot \cos\theta + \frac{x^2}{r^2} \cdot \frac{\sin\theta}{r} \\
+           -\frac{y}{r} \cdot \ddd{\theta}{r} \cdot \sin\theta
+          \end{array} \right] & t = f_v \\
+          -\frac{1}{f_u} \left[ \begin{array}{c}
+            \frac{x^2}{r^2} \cdot \ddd{\theta}{r} \cdot \cos\theta + \frac{y^2}{r^2} \cdot \frac{\sin\theta}{r} \\
+            \frac{xy}{r^2}  \cdot \ddd{\theta}{r} \cdot \cos\theta - \frac{xy}{r^2}  \cdot \frac{\sin\theta}{r} \\
+           -\frac{x}{r} \cdot \ddd{\theta}{r} \cdot \sin\theta
+          \end{array} \right] & t = u_0 \\
+          -\frac{1}{f_v} \left[ \begin{array}{c}
+            \frac{xy}{r^2}  \cdot \ddd{\theta}{r} \cdot \cos\theta - \frac{xy}{r^2}  \cdot \frac{\sin\theta}{r} \\
+            \frac{y^2}{r^2} \cdot \ddd{\theta}{r} \cdot \cos\theta + \frac{x^2}{r^2} \cdot \frac{\sin\theta}{r} \\
+           -\frac{y}{r} \cdot \ddd{\theta}{r} \cdot \sin\theta
+          \end{array} \right] & t = v_0 \\
+          -\theta^{2i-1} \cdot \ddd{\theta}{r} \left[ \begin{array}{c}
+            \frac{x}{r}\cos\theta \\
+            \frac{y}{r}\cos\theta \\
+            -\sin\theta
+          \end{array} \right] & t = k_i
+        \end{cases}
+\end{align*}
+and
+\begin{align*}
+\lim_{r \to 0} \ddd{\v{m}}{\v{t}} & = 
+  \left[ \begin{array}{cccccccc}
+    0 & 0 & -\frac{1}{f_u} & 0 & 0 & 0 & 0 & 0 \\
+    0 & 0 & 0 & -\frac{1}{f_v} & 0 & 0 & 0 & 0 \\
+    0 & 0 & 0 & 0 & 0 & 0 & 0 & 0
+  \end{array} \right]
+\end{align*}
+as
+\begin{align*}
+  \lim_{r \to 0} \theta & = 0 \\
+  -1 \leq \frac{x}{r} & \leq 1 \\
+  -1 \leq \frac{y}{r} & \leq 1 \\
+  \frac{x^2 + y^2}{r^2} & = 1 \\
+  \lim_{r \to 0} \frac{\sin\theta}{r} & = \lim_{r \to 0} \frac{\sin\theta}{\theta} \cdot \frac{\theta}{r} = 1 \\
+  \lim_{r \to 0} \ddd{\theta}{r} & = 1 \\
+\end{align*}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Collinearity constraint}
+
+For points $P = \{p_i\}_i$ we compute unit vectors $\v{m}_i$ as in previous section.
+If the points are collinear and we have perfect calibration parameters, there exists a~vector $\v{n}$ such that
+\begin{align*}
+0 & = \sum_i (\v{n}^T \v{m}_i)^2 = \v{n}^T \left( \sum_i \v{m}_i \v{m}_i^T \right) \v{n} = \v{n}^T \v{M} \v{n}.
+\end{align*}
+
+For arbitrary vectors $\v{m}_i$, the vector $\v{n}$ minimizing the above value represents a~3D plane that fits best (in terms of least squares) to the vectors $\v{m}_i$.
+The minimum value of the above quadratic form is the smallest eigenvalue $\lambda$ of $\v{M} = \sum_i \v{m}_i \v{m}_i^T$ and $\v{n}$ is its (unit) eigenvector.
+
+One defines
+\begin{align*}
+v_P (\v{t}) = \lambda
+\end{align*}
+as a~measure of non-collinearity of $P$.
+
+\subsection{First derivative of $v_P$.}
+
+We have
+\begin{align*}
+\ddd{v_P}{t} & = \v{n}^T \v{M}_t \v{n},
+\end{align*}
+where
+\begin{align*}
+\v{M}_t & := \ddd{\v{M}}{t} = \sum_i \left( \ddd{\v{m}_i}{t} \v{m}_i^T + \v{m}_i \left(\ddd{\v{m}_i}{t}\right)^T \right) = A_t + A_t^T \\
+A_t & := \sum_i \ddd{\v{m}_i}{t} \v{m}_i^T.
+\end{align*}
+
+\subsection{Second derivative of $v_P$.}
+
+We have
+\begin{align*}
+\ddd{\v{n}}{t} & = - \left( \frac{(\v{n}_1^T\v{M}_t\v{n})}{\lambda_1 - \lambda} \v{n}_1 + \frac{(\v{n}_2^T\v{M}_t\v{n})}{\lambda_2 - \lambda} \v{n}_2 \right),
+\end{align*}
+where $\lambda < \lambda_1 \leq \lambda_2$ are eigenvalues of $\v{M}$ with unit eigenvectors $\v{n}, \v{n}_1, \v{n}_2$, respectively.
+
+\begin{align*}
+\v{M}_{t, t'} & := \sum_i \ddd{\v{m}_i}{t} \left( \ddd{\v{m}_i}{t'} \right)^T \\
+\dddd{v_P}{t}{t'} & \approx 2\cdot \left( \v{n}^T \v{M}_{t, t'} \v{n} + \left( \ddd{\v{n}}{t'} \right)^T \v{M}_t \v{n} \right).
+\end{align*}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Parallelism constraint}
+
+Given a~set of parallel pattern lines $L$ we search for parameters $\v{t}$ such that the representing vectors $\v{n}_i$ (computed as in previous section)
+are coplanar (implying the lines meet in one projective point, representing the direction of the lines).
+This is done exactly as in the previous section, i.e., one minimizes the quadratic form
+\begin{align*}
+\sum_i (\v{l}^T \v{n}_i)^2 & = \v{l}^T \left( \sum_i \v{n}_i \v{n}_i^T \right) \v{l} = \v{l}^T \v{N} \v{l}.
+\end{align*}
+
+Therefore we have
+\begin{align*}
+v_L (\v{t}) = \mu,
+\end{align*}
+where $\mu$ is the smallest eigenvalue of $\v{N}$ (and the minimum is attained for its unit eigenvector $\v{l}$).
+
+\subsection{First derivative of $v_L$.}
+
+Again we have
+\begin{align*}
+\ddd{v_L}{t} & = \v{l}^T \v{N}_t \v{l},
+\end{align*}
+where
+\begin{align*}
+\v{N}_t & := \ddd{\v{N}}{t} = \sum_i \left( \ddd{\v{n}_i}{t} \v{n}_i^T + \v{n}_i \left(\ddd{\v{n}_i}{t}\right)^T \right) = B_t + B_t^T \\
+B_t & := \sum_i \ddd{\v{n}_i}{t} \v{n}_i^T.
+\end{align*}
+
+\subsection{Second derivative of $v_L$.}
+
+Similarly we have
+\begin{align*}
+\ddd{\v{l}}{t} & = - \left( \frac{(\v{l}_1^T\v{N}_t\v{l})}{\mu_1 - \mu} \v{l}_1 + \frac{(\v{l}_2^T\v{N}_t\v{l})}{\mu_2 - \mu} \v{l}_2 \right),
+\end{align*}
+where $\mu < \mu_1 \leq \mu_2$ are eigenvalues of $\v{N}$ with unit eigenvectors $\v{l}, \v{l}_1, \v{l}_2$, respectively.
+
+\begin{align*}
+\v{N}_{t, t'} & := \sum_i \ddd{\v{n}_i}{t} \left( \ddd{\v{n}_i}{t'} \right)^T \\
+\dddd{v_L}{t}{t'} & \approx 2\cdot \left( \v{l}^T \v{N}_{t, t'} \v{l} + \left( \ddd{\v{l}}{t'} \right)^T \v{N}_t \v{l} \right).
+\end{align*}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Orthogonality constraint}
+
+Once we have computed two directions $\v{l}_1$, $\v{l}_2$ for two orthogonal bunches of pattern lines (for parameters $\v{t}$) we measure non-orthogonality
+by simply computing
+\begin{align*}
+v_O (\v{t}) = (\v{l}_1^T \v{l}_2)^2.
+\end{align*}
+
+\subsection{First derivative of $v_O$.}
+
+\begin{align*}
+\ddd{v_O}{t} & = 2 \cdot \v{l}_1^T \v{l}_2 \cdot \left( \v{l}_1^T \ddd{\v{l}_2}{t} + \v{l}_2^T \ddd{\v{l}_1}{t} \right).
+\end{align*}
+
+\subsection{Second derivative of $v_O$.}
+
+\begin{align*}
+\dddd{v_O}{t}{t'} & \approx 2 \cdot \left( \v{l}_1^T \ddd{\v{l}_2}{t} + \v{l}_2^T \ddd{\v{l}_1}{t} \right) \left( \v{l}_1^T \ddd{\v{l}_2}{t'} + \v{l}_2^T \ddd{\v{l}_1}{t'} \right).
+\end{align*}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Algorithm}
+
+As in \cite{Kan}, we use second order Levenberg--Marquardt algorithm variant for unconstrained nonlinear optimization for camera calibration.
+Given approximate field of view $\theta$ and image resolution $(w, h)$ of the camera, initial values are $(\frac{w}{\theta}, \frac{h}{\theta}, \frac{w}{2}, \frac{h}{2}, 0, 0, 0, 0)$.
+With dumping parameter $\lambda$ (initially set to $0.001$) one computes step $d$ as the solution of
+\begin{align*}
+H_\lambda d & = -g,
+\end{align*}
+where $g$ is the gradient and $H_\lambda$ is the hessian with the diagonal multiplied by $1 + \lambda$, both for current argument $x$. If the value for $x + d$ decrease, we accept, set $x = x + d$ and decrease $\lambda$ (by constant factor, default is $10$).
+Otherwise we repeat with $\lambda$ increased (by the same factor as before). We stop when $\lambda$ exceeds some level (e.g.~$10^{10}$).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{thebibliography}{MMM}
+
+\bibitem{Kan} Kenichi Kanatani, Calibration of Ultrawide Fisheye Lens Cameras by Eigenvalue Minimization,
+  \emph{IEEE Transactions on Pattern Analysis and Machine Intelligence}, Vol.~35, Issue~4, April 2013, pp~813--822.
+
+\end{thebibliography}
+
+\end{document}
