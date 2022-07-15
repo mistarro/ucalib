@@ -29,6 +29,13 @@ add_custom_target(headers SOURCES
 # Tools
 #
 
+# gen-chessboard
+add_executable(gen-chessboard
+    src/gen-chessboard.cpp
+)
+target_link_libraries(gen-chessboard opencv_core opencv_highgui)
+target_compile_features(gen-chessboard PRIVATE cxx_std_11)
+
 # compile-patterns
 add_executable(compile-patterns
     src/compile-patterns.cpp
